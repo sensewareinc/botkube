@@ -1,3 +1,22 @@
+// Copyright (c) 2019 InfraCloud Technologies
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package notify
 
 import (
@@ -9,13 +28,12 @@ import (
 
 	"github.com/infracloudio/botkube/pkg/config"
 	"github.com/infracloudio/botkube/pkg/events"
-	log "github.com/infracloudio/botkube/pkg/logging"
+	"github.com/infracloudio/botkube/pkg/log"
 )
 
-// Webhook contains URL and ClusterName
+// Webhook contains URL
 type Webhook struct {
-	URL         string
-	ClusterName string
+	URL string
 }
 
 // WebhookPayload contains json payload to be sent to webhook url
@@ -39,26 +57,21 @@ type EventMeta struct {
 // EventStatus contains the status about the event occurred
 type EventStatus struct {
 	Type     config.EventType `json:"type"`
-	Level    events.Level     `json:"level"`
+	Level    config.Level     `json:"level"`
 	Reason   string           `json:"reason,omitempty"`
 	Error    string           `json:"error,omitempty"`
 	Messages []string         `json:"messages,omitempty"`
 }
 
 // NewWebhook returns new Webhook object
-func NewWebhook(c *config.Config) Notifier {
+func NewWebhook(c config.CommunicationsConfig) Notifier {
 	return &Webhook{
-		URL:         c.Communications.Webhook.URL,
-		ClusterName: c.Settings.ClusterName,
+		URL: c.Webhook.URL,
 	}
 }
 
 // SendEvent sends event notification to Webhook url
 func (w *Webhook) SendEvent(event events.Event) (err error) {
-
-	// set missing cluster name to event object
-	event.Cluster = w.ClusterName
-
 	jsonPayload := &WebhookPayload{
 		EventMeta: EventMeta{
 			Kind:      event.Kind,
@@ -81,11 +94,11 @@ func (w *Webhook) SendEvent(event events.Event) (err error) {
 
 	err = w.PostWebhook(jsonPayload)
 	if err != nil {
-		log.Logger.Error(err.Error())
-		log.Logger.Debugf("Event Not Sent to Webhook %v", event)
+		log.Error(err.Error())
+		log.Debugf("Event Not Sent to Webhook %v", event)
 	}
 
-	log.Logger.Debugf("Event successfully sent to Webhook %v", event)
+	log.Debugf("Event successfully sent to Webhook %v", event)
 	return nil
 }
 

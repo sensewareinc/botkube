@@ -1,9 +1,28 @@
+// Copyright (c) 2019 InfraCloud Technologies
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package filters
 
 import (
 	"github.com/infracloudio/botkube/pkg/events"
 	"github.com/infracloudio/botkube/pkg/filterengine"
-	log "github.com/infracloudio/botkube/pkg/logging"
+	"github.com/infracloudio/botkube/pkg/log"
 	"github.com/infracloudio/botkube/pkg/utils"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -36,15 +55,15 @@ func (f ObjectAnnotationChecker) Run(object interface{}, event *events.Event) {
 	// Check annotations in object
 	if isObjectNotifDisabled(obj) {
 		event.Skip = true
-		log.Logger.Debug("Object Notification Disable through annotations")
+		log.Debug("Object Notification Disable through annotations")
 	}
 
 	if channel, ok := reconfigureChannel(obj); ok {
 		event.Channel = channel
-		log.Logger.Debugf("Redirecting Event Notifications to channel: %s", channel)
+		log.Debugf("Redirecting Event Notifications to channel: %s", channel)
 	}
 
-	log.Logger.Debug("Object annotations filter successful!")
+	log.Debug("Object annotations filter successful!")
 }
 
 // Describe filter
@@ -57,7 +76,7 @@ func (f ObjectAnnotationChecker) Describe() string {
 func isObjectNotifDisabled(obj metaV1.ObjectMeta) bool {
 
 	if obj.Annotations[DisableAnnotation] == "true" {
-		log.Logger.Debug("Skipping Disabled Event Notifications!")
+		log.Debug("Skipping Disabled Event Notifications!")
 		return true
 	}
 	return false

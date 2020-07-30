@@ -1,3 +1,22 @@
+// Copyright (c) 2019 InfraCloud Technologies
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package events
 
 import (
@@ -14,22 +33,6 @@ import (
 	rbacV1 "k8s.io/api/rbac/v1"
 )
 
-// Level type to store event levels
-type Level string
-
-const (
-	// Info level
-	Info Level = "info"
-	// Warn level
-	Warn Level = "warn"
-	// Debug level
-	Debug Level = "debug"
-	// Error level
-	Error Level = "error"
-	// Critical level
-	Critical Level = "critical"
-)
-
 // Event to store required information from k8s objects
 type Event struct {
 	Code      string
@@ -41,7 +44,7 @@ type Event struct {
 	Type      config.EventType
 	Reason    string
 	Error     string
-	Level     Level
+	Level     config.Level
 	Cluster   string
 	Channel   string
 	TimeStamp time.Time
@@ -54,15 +57,15 @@ type Event struct {
 }
 
 // LevelMap is a map of event type to Level
-var LevelMap map[config.EventType]Level
+var LevelMap map[config.EventType]config.Level
 
 func init() {
-	LevelMap = make(map[config.EventType]Level)
-	LevelMap[config.CreateEvent] = Info
-	LevelMap[config.UpdateEvent] = Warn
-	LevelMap[config.DeleteEvent] = Critical
-	LevelMap[config.ErrorEvent] = Error
-	LevelMap[config.WarningEvent] = Error
+	LevelMap = make(map[config.EventType]config.Level)
+	LevelMap[config.CreateEvent] = config.Info
+	LevelMap[config.UpdateEvent] = config.Warn
+	LevelMap[config.DeleteEvent] = config.Critical
+	LevelMap[config.ErrorEvent] = config.Error
+	LevelMap[config.WarningEvent] = config.Error
 }
 
 // New extract required details from k8s object and returns new Event object

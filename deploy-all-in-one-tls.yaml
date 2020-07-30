@@ -1,15 +1,22 @@
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: botkube
+---
 # Configmap
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: botkube-configmap
+  namespace: botkube
   labels:
     app: botkube
 data:
-  config.yaml: |
+  resource_config.yaml: |
     ## Resources you want to watch
     resources:
+      - name: pod                # Name of the resources e.g pod, deployment, ingress, etc. (Resource name must be in singular form)
         namespaces:
           include:
             - all
@@ -40,6 +47,11 @@ data:
           - update
           - delete
           - error
+        updateSetting:
+          includeDiff: true
+          fields:
+            - spec.template.spec.containers[*].image
+            - status.availableReplicas
       - name: statefulset
         namespaces:
           include:
@@ -51,6 +63,11 @@ data:
           - update
           - delete
           - error
+        updateSetting:
+          includeDiff: true
+          fields:
+            - spec.template.spec.containers[*].image
+            - status.readyReplicas
       - name: ingress
         namespaces:
           include:
@@ -119,9 +136,14 @@ data:
             -
         events:
           - create
-          - delete
           - update
+          - delete
           - error
+        updateSetting:
+          includeDiff: true
+          fields:
+            - spec.template.spec.containers[*].image
+            - status.numberReady
       - name: job
         namespaces:
           include:
@@ -133,6 +155,11 @@ data:
           - update
           - delete
           - error
+        updateSetting:
+          includeDiff: true
+          fields:
+            - spec.template.spec.containers[*].image
+            - status.conditions[*].type
       - name: role
         namespaces:
           include:
@@ -178,7 +205,40 @@ data:
     # about the best practices for the created resource
     recommendations: true
 
-    # Channels configuration
+    # Setting to support multiple clusters
+    settings:
+      # Cluster name to differentiate incoming messages
+      clustername: not-configured
+      # Kubectl executor configs
+      kubectl:
+        # Set true to enable kubectl commands execution
+        enabled: false
+        commands:
+          # method which are allowed
+          verbs: ["api-resources", "api-versions", "cluster-info", "describe", "diff", "explain", "get", "logs", "top", "auth"]
+          # resource configuration which is allowed
+          resources: ["deployments", "pods" , "namespaces", "daemonsets", "statefulsets", "storageclasses", "nodes"]
+        # set Namespace to execute botkube kubectl commands by default
+        defaultNamespace: default
+        # Set true to enable commands execution from configured channel only
+        restrictAccess: false
+      # Set true to enable config watcher
+      configwatcher: true
+      # Set false to disable upgrade notification
+      upgradeNotifier: true
+---
+# secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: botkube-communication-secret
+  namespace: botkube
+  labels:
+    app: botkube
+type: Opaque
+stringData:
+  comm_config.yaml: |
+    # Communication settings
     communications:
       # Settings for Slack
       slack:
@@ -198,9 +258,13 @@ data:
 
       # Settings for ELS
       elasticsearch:
-        enable: false
-        server: 'ELASTICSEARCH_ADDRESS'              # e.g https://example.com:9243
-        username: 'ELASTICSEARCH_USERNAME'
+        enabled: false
+        awsSigning:
+          enabled: false                            # enable awsSigning using IAM for Elastisearch hosted on AWS, if true make sure AWS environment variables are set. Refer https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+          awsRegion: 'us-east-1'                    # AWS region where Elasticsearch is deployed
+          roleArn: ''                               # AWS IAM Role arn to assume for credentials, use this only if you dont want to use the EC2 instance role or not running on AWS instance
+        server: 'ELASTICSEARCH_ADDRESS'             # e.g https://example.com:9243
+        username: 'ELASTICSEARCH_USERNAME'          # Basic Auth
         password: 'ELASTICSEARCH_PASSWORD'
         # ELS index settings
         index:
@@ -208,29 +272,18 @@ data:
           type: botkube-event
           shards: 1
           replicas: 0
-
+    
       # Settings for Webhook
       webhook:
         enabled: false
         url: 'WEBHOOK_URL'                          # e.g https://example.com:80
-
-
-    # Setting to support multiple clusters
-    settings:
-      # Cluster name to differentiate incoming messages
-      clustername: not-configured
-      # Set true to enable kubectl commands execution
-      allowkubectl: false
-      # Set true to enable config watcher
-      configwatcher: true
-      # Set false to disable upgrade notification
-      upgradeNotifier: true
 ---
 # serviceaccount
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: botkube-sa
+  namespace: botkube
   labels:
     app: botkube
 ---
@@ -266,7 +319,7 @@ subjects:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: botkube-secret
+  name: botkube-certificate-secret
   labels:
     app: botkube
 data:
@@ -277,6 +330,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: botkube
+  namespace: botkube
   labels:
     component: controller
     app: botkube
@@ -295,7 +349,7 @@ spec:
       serviceAccountName: botkube-sa
       containers:
         - name: botkube
-          image: "infracloudio/botkube:v0.9.1"
+          image: "infracloudio/botkube:v0.10.0"
           imagePullPolicy: Always
           volumeMounts:
             - name: config-volume
@@ -310,14 +364,18 @@ spec:
               value: "info"
             # set BotKube release version
             - name: BOTKUBE_VERSION
-              value: v0.9.1
+              value: v0.10.0
       volumes:
         - name: config-volume
-          configMap:
-            name: botkube-configmap
+          projected:
+            sources:
+            - configMap:
+                name: botkube-configmap
+            - secret:
+                name: botkube-communication-secret
         - name: certs
           secret:
-            secretName: botkube-secret
+            secretName: botkube-certificate-secret
       # run as non privilaged user
       securityContext:
         runAsUser: 101

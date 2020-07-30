@@ -3,10 +3,13 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-
+# Extra annotations to pass to the botkube pod
+extraAnnotations: {}
+# Priority class name for the pod
+priorityClassName: ""
 image:
   repository: infracloudio/botkube
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   ## default tag is appVersion from Chart.yaml. If you want to use
   ## some other tag then it can be specified here
   tag: latest
@@ -32,7 +35,7 @@ config:
   resources:
     - name: pod                # Name of the resources e.g pod, deployment, ingress, etc. (Resource name must be in singular form)
       namespaces:
-        include:  
+        include:
           - all
         ignore:                 # List of namespaces to be ignored (omitempty), used only with include: all
           -                     # example : include [all], ignore [x,y,z] 
@@ -42,17 +45,17 @@ config:
         - error
     - name: service
       namespaces:
-        include:  
+        include:
           - all
         ignore:
-          - 
+          -
       events:
         - create
         - delete
         - error
     - name: deployment
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -61,9 +64,14 @@ config:
         - update
         - delete
         - error
+      updateSetting:
+        includeDiff: true
+        fields:
+          - spec.template.spec.containers[*].image
+          - status.availableReplicas
     - name: statefulset
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -72,9 +80,14 @@ config:
         - update
         - delete
         - error
+      updateSetting:
+        includeDiff: true
+        fields:
+          - spec.template.spec.containers[*].image
+          - status.readyReplicas
     - name: ingress
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -84,7 +97,7 @@ config:
         - error
     - name: node
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -94,7 +107,7 @@ config:
         - error
     - name: namespace
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -104,7 +117,7 @@ config:
         - error
     - name: persistentvolume
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -114,7 +127,7 @@ config:
         - error
     - name: persistentvolumeclaim
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -124,7 +137,7 @@ config:
         - error
     - name: configmap
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -134,17 +147,7 @@ config:
         - error
     - name: daemonset
       namespaces:
-        include:  
-          - all
-        ignore:
-          -
-      events:
-        - create
-        - delete
-        - error
-    - name: job
-      namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -153,9 +156,30 @@ config:
         - update
         - delete
         - error
+      updateSetting:
+        includeDiff: true
+        fields:
+          - spec.template.spec.containers[*].image
+          - status.numberReady
+    - name: job
+      namespaces:
+        include:
+          - all
+        ignore:
+          -
+      events:
+        - create
+        - update
+        - delete
+        - error
+      updateSetting:
+        includeDiff: true
+        fields:
+          - spec.template.spec.containers[*].image
+          - status.conditions[*].type
     - name: role
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -165,7 +189,7 @@ config:
         - error
     - name: rolebinding
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -178,14 +202,14 @@ config:
         include:
           - all
         ignore:
-          - 
+          -
       events:
         - create
         - delete
         - error
     - name: clusterrolebinding
       namespaces:
-        include:  
+        include:
           - all
         ignore:
           -
@@ -202,53 +226,68 @@ config:
     enabled: false                               # Set to true and specify cert path in the next line after uncommenting
     #cert:                                       # SSL Certificate file e.g certs/my-cert.crt
 
-  # Channels configuration
-  communications:
-    # Settings for Slack
-    slack:
-      enabled: false
-      channel: 'SLACK_CHANNEL'                   # Slack channel name without '#' prefix where you have added BotKube and want to receive notifications in
-      token: 'SLACK_API_TOKEN'
-      notiftype: short                           # Change notification type short/long you want to receive. notiftype is optional and Default notification type is short (if not specified) 
-
-    # Settings for Mattermost
-    mattermost:
-      enabled: false
-      url: 'MATTERMOST_SERVER_URL'                # URL where Mattermost is running. e.g https://example.com:9243
-      token: 'MATTERMOST_TOKEN'                   # Personal Access token generated by BotKube user
-      team: 'MATTERMOST_TEAM'                     # Mattermost Team to configure with BotKube
-      channel: 'MATTERMOST_CHANNEL'               # Mattermost Channel for receiving BotKube alerts
-      notiftype: short                            # Change notification type short/long you want to receive. notiftype is optional and Default notification type is short (if not specified)
-
-    # Settings for ELS
-    elasticsearch:
-      enabled: false
-      server: 'ELASTICSEARCH_ADDRESS'              # e.g https://example.com:9243
-      username: 'ELASTICSEARCH_USERNAME'
-      password: 'ELASTICSEARCH_PASSWORD'
-      # ELS index settings
-      index:
-        name: botkube
-        type: botkube-event
-        shards: 1
-        replicas: 0
-    
-    # Settings for Webhook
-    webhook:
-      enabled: false
-      url: 'WEBHOOK_URL'                          # e.g https://example.com:80
-
-
   # Setting to support multiple clusters
   settings:
     # Cluster name to differentiate incoming messages
     clustername: not-configured
-    # Set true to enable kubectl commands execution
-    allowkubectl: false
+    # Kubectl executor configs
+    kubectl:
+      # Set true to enable kubectl commands execution
+      enabled: false
+      # List of allowed commands
+      commands:
+        # method which are allowed
+        verbs: ["api-resources", "api-versions", "cluster-info", "describe", "diff", "explain", "get", "logs", "top", "auth"]
+        # resource configuration which is allowed
+        resources: ["deployments", "pods" , "namespaces", "daemonsets", "statefulsets", "storageclasses", "nodes" ]
+      # set Namespace to execute botkube kubectl commands by default
+      defaultNamespace: default
+      # Set true to enable commands execution from configured channel only
+      restrictAccess: false
     # Set true to enable config watcher
     configwatcher: true
     # Set false to disable upgrade notification
     upgradeNotifier: true
+
+# Communication settings
+communications:
+  # Settings for Slack
+  slack:
+    enabled: false
+    channel: 'SLACK_CHANNEL'                   # Slack channel name without '#' prefix where you have added BotKube and want to receive notifications in
+    token: 'SLACK_API_TOKEN'
+    notiftype: short                           # Change notification type short/long you want to receive. notiftype is optional and Default notification type is short (if not specified) 
+
+  # Settings for Mattermost
+  mattermost:
+    enabled: false
+    url: 'MATTERMOST_SERVER_URL'                # URL where Mattermost is running. e.g https://example.com:9243
+    token: 'MATTERMOST_TOKEN'                   # Personal Access token generated by BotKube user
+    team: 'MATTERMOST_TEAM'                     # Mattermost Team to configure with BotKube
+    channel: 'MATTERMOST_CHANNEL'               # Mattermost Channel for receiving BotKube alerts
+    notiftype: short                            # Change notification type short/long you want to receive. notiftype is optional and Default notification type is short (if not specified)
+
+  # Settings for ELS
+  elasticsearch:
+    enabled: false
+    awsSigning:
+      enabled: false                            # enable awsSigning using IAM for Elastisearch hosted on AWS, if true make sure AWS environment variables are set. Refer https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+      awsRegion: "us-east-1"                    # AWS region where Elasticsearch is deployed
+      roleArn: ''                               # AWS IAM Role arn to assume for credentials, use this only if you dont want to use the EC2 instance role or not running on AWS instance
+    server: 'ELASTICSEARCH_ADDRESS'             # e.g https://example.com:9243
+    username: 'ELASTICSEARCH_USERNAME'          # Basic Auth
+    password: 'ELASTICSEARCH_PASSWORD'
+    # ELS index settings
+    index:
+      name: botkube
+      type: botkube-event
+      shards: 1
+      replicas: 0
+
+  # Settings for Webhook
+  webhook:
+    enabled: false
+    url: 'WEBHOOK_URL'                          # e.g https://example.com:80
 
 service:
   name: metrics
@@ -285,3 +324,18 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["*"]
+      resources: ["*"]
+      verbs: ["get", "watch", "list"]
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  #name:
+  # annotations for the service account
+  annotations: {}

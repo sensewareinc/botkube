@@ -1,3 +1,22 @@
+// Copyright (c) 2019 InfraCloud Technologies
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package command
 
 import (
@@ -14,6 +33,7 @@ import (
 type kubectlCommand struct {
 	command  string
 	expected string
+	channel  string
 }
 
 type context struct {
@@ -24,9 +44,15 @@ type context struct {
 func (c *context) testKubectlCommand(t *testing.T) {
 	// Test cases
 	tests := map[string]kubectlCommand{
-		"BotKube get pods": {
+		"BotKube get pods from configured channel": {
 			command:  "get pods",
 			expected: fmt.Sprintf("```Cluster: %s\n%s```", c.Config.Settings.ClusterName, execute.KubectlResponse["-n default get pods"]),
+			channel:  c.Config.Communications.Slack.Channel,
+		},
+		"BotKube get pods out of configured channel": {
+			command:  "get pods",
+			expected: fmt.Sprintf("<@U023BECGF> get pods"),
+			channel:  "dummy",
 		},
 	}
 
@@ -34,7 +60,7 @@ func (c *context) testKubectlCommand(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if c.TestEnv.Config.Communications.Slack.Enabled {
 				// Send message to a channel
-				c.SlackServer.SendMessageToBot(c.Config.Communications.Slack.Channel, test.command)
+				c.SlackServer.SendMessageToBot(test.channel, test.command)
 
 				// Get last seen slack message
 				lastSeenMsg := c.GetLastSeenSlackMessage()
@@ -43,7 +69,7 @@ func (c *context) testKubectlCommand(t *testing.T) {
 				m := slack.Message{}
 				err := json.Unmarshal([]byte(*lastSeenMsg), &m)
 				assert.NoError(t, err, "message should decode properly")
-				assert.Equal(t, c.Config.Communications.Slack.Channel, m.Channel)
+				assert.Equal(t, test.channel, m.Channel)
 				assert.Equal(t, test.expected, m.Text)
 			}
 		})

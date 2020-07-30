@@ -1,3 +1,22 @@
+// Copyright (c) 2019 InfraCloud Technologies
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package config
 
 import (
@@ -29,13 +48,30 @@ const (
 	ShortNotify NotifType = "short"
 	// LongNotify for short events notification
 	LongNotify NotifType = "long"
+
+	// Info level
+	Info Level = "info"
+	// Warn level
+	Warn Level = "warn"
+	// Debug level
+	Debug Level = "debug"
+	// Error level
+	Error Level = "error"
+	// Critical level
+	Critical Level = "critical"
 )
 
 // EventType to watch
 type EventType string
 
-// ConfigFileName is a name of botkube configuration file
-var ConfigFileName = "config.yaml"
+// Level type to store event levels
+type Level string
+
+// ResourceConfigFileName is a name of botkube resource configuration file
+var ResourceConfigFileName = "resource_config.yaml"
+
+// CommunicationConfigFileName is a name of botkube communication configuration file
+var CommunicationConfigFileName = "comm_config.yaml"
 
 // Notify flag to toggle event notification
 var Notify = true
@@ -47,15 +83,27 @@ type NotifType string
 type Config struct {
 	Resources       []Resource
 	Recommendations bool
-	Communications  Communications
+	Communications  CommunicationsConfig
 	Settings        Settings
+}
+
+// Communications contains communication config
+type Communications struct {
+	Communications CommunicationsConfig
 }
 
 // Resource contains resources to watch
 type Resource struct {
-	Name       string
-	Namespaces Namespaces
-	Events     []EventType
+	Name          string
+	Namespaces    Namespaces
+	Events        []EventType
+	UpdateSetting UpdateSetting `yaml:"updateSetting"`
+}
+
+//UpdateSetting struct defines updateEvent fields specification
+type UpdateSetting struct {
+	Fields      []string
+	IncludeDiff bool `yaml:"includeDiff"`
 }
 
 // Namespaces contains namespaces to include and ignore
@@ -69,8 +117,8 @@ type Namespaces struct {
 	Ignore  []string `yaml:",omitempty"`
 }
 
-// Communications channels to send events to
-type Communications struct {
+// CommunicationsConfig channels to send events to
+type CommunicationsConfig struct {
 	Slack         Slack
 	ElasticSearch ElasticSearch
 	Mattermost    Mattermost
@@ -87,11 +135,19 @@ type Slack struct {
 
 // ElasticSearch config auth settings
 type ElasticSearch struct {
-	Enabled  bool
-	Username string
-	Password string `yaml:",omitempty"`
-	Server   string
-	Index    Index
+	Enabled    bool
+	Username   string
+	Password   string `yaml:",omitempty"`
+	Server     string
+	AWSSigning AWSSigning `yaml:"awsSigning"`
+	Index      Index
+}
+
+// AWSSigning contains AWS configurations
+type AWSSigning struct {
+	Enabled   bool
+	AWSRegion string `yaml:"awsRegion"`
+	RoleArn   string `yaml:"roleArn"`
 }
 
 // Index settings for ELS
@@ -118,10 +174,24 @@ type Webhook struct {
 	URL     string
 }
 
+// Kubectl configuration for executing commands inside cluster
+type Kubectl struct {
+	Enabled          bool
+	Commands         Commands
+	DefaultNamespace string
+	RestrictAccess   bool `yaml:"restrictAccess"`
+}
+
+// Commands allowed in bot
+type Commands struct {
+	Verbs     []string
+	Resources []string
+}
+
 // Settings for multicluster support
 type Settings struct {
 	ClusterName     string
-	AllowKubectl    bool
+	Kubectl         Kubectl
 	ConfigWatcher   bool
 	UpgradeNotifier bool `yaml:"upgradeNotifier"`
 }
@@ -130,18 +200,18 @@ func (eventType EventType) String() string {
 	return string(eventType)
 }
 
-// New returns new Config
-func New() (*Config, error) {
-	c := &Config{}
+// NewCommunicationsConfig return new communication config object
+func NewCommunicationsConfig() (*Communications, error) {
+	c := &Communications{}
 	configPath := os.Getenv("CONFIG_PATH")
-	configFile := filepath.Join(configPath, ConfigFileName)
-	file, err := os.Open(configFile)
-	defer file.Close()
+	communicationConfigFilePath := filepath.Join(configPath, CommunicationConfigFileName)
+	communicationConfigFile, err := os.Open(communicationConfigFilePath)
+	defer communicationConfigFile.Close()
 	if err != nil {
 		return c, err
 	}
 
-	b, err := ioutil.ReadAll(file)
+	b, err := ioutil.ReadAll(communicationConfigFile)
 	if err != nil {
 		return c, err
 	}
@@ -149,5 +219,34 @@ func New() (*Config, error) {
 	if len(b) != 0 {
 		yaml.Unmarshal(b, c)
 	}
+	return c, nil
+}
+
+// New returns new Config
+func New() (*Config, error) {
+	c := &Config{}
+	configPath := os.Getenv("CONFIG_PATH")
+	resourceConfigFilePath := filepath.Join(configPath, ResourceConfigFileName)
+	resourceConfigFile, err := os.Open(resourceConfigFilePath)
+	defer resourceConfigFile.Close()
+	if err != nil {
+		return c, err
+	}
+
+	b, err := ioutil.ReadAll(resourceConfigFile)
+	if err != nil {
+		return c, err
+	}
+
+	if len(b) != 0 {
+		yaml.Unmarshal(b, c)
+	}
+
+	comm, err := NewCommunicationsConfig()
+	if err != nil {
+		return nil, err
+	}
+	c.Communications = comm.Communications
+
 	return c, nil
 }
